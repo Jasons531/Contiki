@@ -1,0 +1,63 @@
+10月：contiki使用sx1278单进程收发，多进程收发
+11月：MTK7688以太网
+
+
+
+BAT
+
+contiki：进程分为合作式(按顺序执行)、抢占式(外部事件、定时器事件：暂停合作式进程执行完成后恢复到合作式断点)
+
+
+1：protothread没有保护堆栈上下文，进行进程切换时局部变量得不到保存，因此需要使用static进行修饰，保证该变量的生命周期。
+
+1.4  进程状态
+进程共 3 个状态，宏定义如下：
+1. #define PROCESS_STATE_NONE 0 /*类似于 Linux 系统的僵尸状态，进程已退出，只是还没从进程链表删除*/
+2. #define PROCESS_STATE_RUNNING 1 /*进程正在执行*/
+3. #define PROCESS_STATE_CALLED 2 /*实际上是返回，并保存 lc 值*/
+
+1.5 needspoll
+needspoll 为 1 的进程有更高的优先级。具体表现为，当系统调用 process_run()函数时，把所有 needspoll 标志
+为 1 的进程投入运行，而后才从事件队列取出下一个事件传递给相应的监听进程
+
+事件可以被分为三类：时钟事件(timer events)、外部事件、内部事件。那么，Contiki 核心数据结构就只有进程和事件了
+把 etimer 理解成一种特殊的事件。
+
+4：注：PROCESS_EVENT_EXIT 与 PROCESS_EVENT_EXITED 区别
+事件 PROCESS_EVENT_EXIT 用于传递给进程的主体函数 thread，如在 exit_process 函数中的 p p- - >thread(&p- - >pt,
+PROCESS_EVENT_EXIT, NULL)。而 PROCESS_EVENT_EXITED 用于传递给进程，如  call_process(q, PROCESS_EVENT_EXITED,
+(process_data_t)p)。(助记：EXITED 是完成式，发给进程，让整个进程结束。而 g 一般式 EXIT，发给进程主体 thread，只是使其退
+出 thread)
+
+5：进程 process、事件 event_data、etimer 都是 Contiki 的核心数据结构，理清这三者关系，将有助于对系统的理解。
+事件分：同步、异步、定时器、内部、外部事件。
+etimer是定时器事件，contiki把etimer单列出来，方便管理
+
+1. #define PROCESS_STATE_NONE 0 /*类似于 Linux 系统的僵尸状态，进程已退出，只是还没从进程链表删除*/
+2. #define PROCESS_STATE_RUNNING 1 /*进程正在执行*/
+3. #define PROCESS_STATE_CALLED 2 /*被阻塞，运行？*/
+
+6：解析etimer_set(&timer, CLOCK_CONF_SECOND / 10)
+2.使用ETimer结构体实例化一个定时器
+
+static struct etimer timer;
+
+
+3.在循环体内设置定时
+
+这里定时1秒
+
+etimer_set(&timer, CLOCK_CONF_SECOND);
+
+如果是2秒
+
+etimer_set(&timer, CLOCK_CONF_SECOND*2);
+
+如果是0.1秒
+
+etimer_set(&timer, CLOCK_CONF_SECOND/10);
+
+4.等待事件
+
+PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_TIMER);
+
